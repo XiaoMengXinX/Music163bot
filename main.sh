@@ -2,7 +2,7 @@
 BOT_TOKEN=""
 MUSIC_U=""
 tgAPI='https://api.telegram.org'
-botName=Music163bot
+botName=""
 
 function encryptData() {
     openssl enc -aes-128-ecb -K 653832636b656e683864696368656e38 -nosalt | od -An -t xC | xargs | sed 's/[[:space:]]//g' | tr '[:upper:]' '[:lower:]'
@@ -185,14 +185,14 @@ function processSearch() {
         done
         if [ "$i" != $((searchResultNum - 1)) ]; then
             searchReport="${searchReport}$((i + 1)).「${musicName}」- ${musicArtists}%0A"
-            inlineMarkup="${inlineMarkup}{\"text\":\"$((i + 1))\",\"callback_data\":\"musicid $(echo "$searchResult" | jq -r .[$i].id)\"},"
+            inlineMarkup="${inlineMarkup}{\"text\":\"$((i + 1))\",\"callback_data\":\"musicid$(echo "$searchResult" | jq -r .[$i].id)\"},"
         else
             searchReport="${searchReport}$((i + 1)).「${musicName}」- ${musicArtists}"
-            inlineMarkup="${inlineMarkup}{\"text\":\"$((i + 1))\",\"callback_data\":\"musicid $(echo "$searchResult" | jq -r .[$i].id)\"}"
+            inlineMarkup="${inlineMarkup}{\"text\":\"$((i + 1))\",\"callback_data\":\"musicid$(echo "$searchResult" | jq -r .[$i].id)\"}"
         fi
     done
     inlineKeyboard="{\"inline_keyboard\":[[${inlineMarkup}]]}"
-    editMessage "$2" "${msgID}" "搜索结果:%0A${searchReport}" "${inlineKeyboard}"
+    editMessage "$2" "${msgID}" "搜索结果:%0A${searchReport}" "${inlineKeyboard}" >/dev/null 2>&1
 }
 
 for (( ; ; )); do
@@ -205,13 +205,13 @@ for (( ; ; )); do
     for ((i = 0; i <= messageNumber; i++)); do
         if [ "$updateID" ] && [ "$(echo "$updateData" | jq -r .result[$i].update_id)" -gt "$updateID" ]; then
             message=$(echo "$updateData" | jq -r .result[$i].message.text)
-            callback=$(echo $updateData | jq -r .result[$i].callback_query)
+            callback=$(echo "$updateData" | jq -r .result[$i].callback_query)
             chatID=$(echo "$updateData" | jq -r .result[$i].message.chat.id)
-            if [[ "$message" =~ /musicid ]] || [[ "$message" =~ music.163.com ]] || [[ "$message" =~ /netease ]]; then
+            if [[ "$message" =~ /musicid ]] || [[ "$message" =~ music.163.com ]] || [[ "$message" =~ /netease ]] || [[ "$message" =~ "/start musicid" ]]; then
                 if [[ "$message" =~ music.163.com ]]; then
                     id=$(echo "$message" | tr -d "\n" | sed 's:\(.*\)song?id=::' | sed 's:\(.*\)song/::' | sed 's:/\(.*\)::' | sed 's:&\(.*\)::' | sed 's:?user\(.*\)::')
                 else
-                    id=$(echo "$message" | sed 's:/musicid::' | sed 's:/netease::' | sed 's:@Music163bot::' | sed s/[[:space:]]//g)
+                    id=$(echo "$message" | sed 's:/musicid::' | sed 's:/netease::' | sed 's:/start musicid::' | sed s/[[:space:]]//g)
                 fi
                 if echo "$id" | grep -q '^[Z0-9 ]\+$'; then
                     processMusic "$id" "$chatID" &
@@ -222,13 +222,13 @@ for (( ; ; )); do
             fi
             if [ "$callback" != "null" ]; then
                 callbackMessage=$(echo "$callback" | jq -r .data)
-                callbackChatID=$(echo "$callback" | jq -r .message.chat.id)
+                #callbackChatID=$(echo "$callback" | jq -r .message.chat.id)
                 callbackQueryID=$(echo "$callback" | jq -r .id)
-                id=$(echo $callbackMessage | sed 's:/musicid::' | sed s/[[:space:]]//g)
-                if echo "$id" | grep -q '^[Z0-9 ]\+$'; then
-                    processMusic "$id" "$callbackChatID" &
-                fi
-                answerCallbackQuery "$callbackQueryID" "t.me/${botName}?start=${callbackMessage}" &
+                #id=$(echo $callbackMessage | sed 's:/musicid::' | sed s/[[:space:]]//g)
+                #if echo "$id" | grep -q '^[Z0-9 ]\+$'; then
+                #    processMusic "$id" "$callbackChatID" &
+                #fi
+                answerCallbackQuery "$callbackQueryID" "t.me/${botName}?start=${callbackMessage}" >/dev/null 2>&1 &
             fi
         fi
     done
