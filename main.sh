@@ -77,19 +77,19 @@ function answerCallbackQuery() {
 # sendMusicFromFile id ext name artist duration album songInfo chatID
 function sendMusicFromFile() {
     curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/sendChatAction" -d "chat_id=$8&action=upload_audio" >/dev/null 2>&1
-    curl ${tgAPI}/bot"${BOT_TOKEN}"/sendAudio -s -X POST -F chat_id="$8" -F audio="@${1}.${2}" -F title="${3}" -F performer="${4}" -F duration="${5}" -F thumb="@${1}.jpg" -F parse_mode="Markdown" -F caption="「$(echo "${3}" | sed 's/[_*`[\]/\\&/g')」 - $(echo "${4}" | sed 's/[_*`[\]/\\&/g')
+    curl ${tgAPI}/bot"${BOT_TOKEN}"/sendAudio -s -X POST -F chat_id="$8" -F audio="@${1}.${2}" -F title="$(echo "${3}"|sed 's/[@]/ &/')" -F performer="$(echo "${4}"|sed 's/[@]/ &/')" -F duration="${5}" -F thumb="@${1}.jpg" -F parse_mode="Markdown" -F caption="「$(echo "${3}" | sed 's/[_*`[\]/\\&/g')」 - $(echo "${4}" | sed 's/[_*`[\]/\\&/g')
 	专辑: $(echo "${6}" | sed 's/[_*`[\]/\\&/g')
 	#网易云音乐 #${2}
-	via @$botName " -F reply_markup="{\"inline_keyboard\":[[{\"text\":\"$(echo "${7}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
+	via @$(echo "${botName}" | sed 's/[_*`[\]/\\&/g' ) " -F reply_markup="{\"inline_keyboard\":[[{\"text\":\"$(echo "${7}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
 }
 
 # sendMusicFromID id ext name artist duration album songInfo chatID fileID
 function sendMusicFromID() {
     curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/sendChatAction" -d "chat_id=$8&action=upload_audio" >/dev/null 2>&1
-    curl ${tgAPI}/bot"${BOT_TOKEN}"/sendAudio -s -X POST -F chat_id="$8" -F audio="$9" -F title="${3}" -F performer="${4}" -F duration="${5}" -F thumb="@${1}.jpg" -F parse_mode="Markdown" -F caption="「$(echo "${3}" | sed 's/[_*`[\]/\\&/g')」 - $(echo "${4}" | sed 's/[_*`[\]/\\&/g')
+    curl ${tgAPI}/bot"${BOT_TOKEN}"/sendAudio -s -X POST -F chat_id="$8" -F audio="$9" -F title="$(echo "${3}"|sed 's/[@]/ &/')" -F performer="$(echo "${4}"|sed 's/[@]/ &/')" -F duration="${5}" -F thumb="@${1}.jpg" -F parse_mode="Markdown" -F caption="「$(echo "${3}" | sed 's/[_*`[\]/\\&/g')」 - $(echo "${4}" | sed 's/[_*`[\]/\\&/g')
 	专辑: $(echo "${6}" | sed 's/[_*`[\]/\\&/g')
 	#网易云音乐 #${2}
-	via @$botName " -F reply_markup="{\"inline_keyboard\":[[{\"text\":\"$(echo "${7}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
+	via @$(echo "${botName}" | sed 's/[_*`[\]/\\&/g' )" -F reply_markup="{\"inline_keyboard\":[[{\"text\":\"$(echo "${7}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
 }
 
 # processMusic musicID chatID
@@ -146,7 +146,7 @@ function processMusic() {
         musicSendingData=$(sendMusicFromFile "$1" "$musicExt" "$musicName" "$musicArtists" "$musicDuration" "$musicAlbum" "$musicInfo" "$2")
         musicFileID=$(echo "$musicSendingData" | jq -r .result.audio.file_id)
         rm ./"${1}"_0.jpg ./"${1}" ./"${1}"."${musicExt}"
-        if [ "$musicFileID" != 'null' ]; then
+        if [ "$musicFileID" != 'null' ] && [ "$musicFileID" != '' ]; then
             echo -n "$musicFileID" >"${1}.txt"
         else
             editMessage "$2" "$msgID" "${musicName}%0A专辑:  ${musicAlbum}%0A${musicExt}  ${musicSizeMB}MB%0A发送失败" >/dev/null 2>&1
@@ -230,7 +230,7 @@ for (( ; ; )); do
             case "${message}" in
                 "/musicid"*|"/netease"*|*"music.163.com"*|"/start musicid"*)
 				case "${message}" in
-					*"music.163.com")
+					*"music.163.com"*)
                     id=$(echo "$message" | tr -d "\n" | sed -e 's/[[:space:]]//g' -e 's:\(.*\)song?id=::' -e 's:\(.*\)song/::' -e 's:/\(.*\)::' -e 's:&\(.*\)::' -e 's:?user\(.*\)::')
                     ;;
                     *)
