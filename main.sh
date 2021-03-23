@@ -2,7 +2,6 @@
 BOT_TOKEN=""
 MUSIC_U=""
 tgAPI='https://api.telegram.org'
-botName=""
 
 function encryptData() {
     openssl enc -aes-128-ecb -K 653832636b656e683864696368656e38 -nosalt | od -An -t xC | xargs | sed 's/[[:space:]]//g' | tr '[:upper:]' '[:lower:]'
@@ -41,6 +40,10 @@ function getSongUrl() {
 
 function getSearchResult() {
     requestUtil "/api/v1/search/song/get" "/v1/search/song/get" "{\"sub\":\"false\",\"s\":\"$(echo "$1" | sed 's/["\]/\\&/g')\",\"offset\":\"0\",\"limit\":\"8\",\"queryCorrect\":\"true\",\"strategy\":\"10\",\"header\":\"{}\",\"e_r\":\"true\"}"
+}
+
+function getMe() {
+    curl -s "${tgAPI}/bot$BOT_TOKEN/getMe"
 }
 
 function updateMessage() {
@@ -94,7 +97,7 @@ function processMusic() {
     local i musicData musicName musicUrlData musicUrl musicExt musicSize musicSizeMB musicAlbum musicPicUrl musicArtistLen musicArtists musicInfo msgID musicDuration musicSendingData musicFileID
     musicData=$(getSongDetail "$1")
     musicName=$(echo "$musicData" | jq -r .songs[0].name)
-    if [ "$musicName" = null ]; then
+    if [ "$musicName" = "null" ]; then
         sendTextMessage "$2" "错误的 MusicID : $id" >/dev/null 2>&1
         return 1
     fi
@@ -118,7 +121,7 @@ function processMusic() {
     done
     musicInfo=$(echo -n "${musicName} - ${musicArtists}" | tr -d "\n" | tr -d '[:cntrl:]')
     if [ ! -f "./cache/${1}.json" ] || [ ! -f "./cache/${1}.txt" ]; then
-        if [ ! -d "./cache" ]; then mkdir "./cache"; fi
+        [ -d "./cache" ] || mkdir "./cache"
         echo "{\"name\":${musicName},\"album\":${musicAlbum},\"artist\":\"${musicArtists}\",\"ext\":\"${musicExt}\",\"size\":\"${musicSize}\"}" >"./cache/${id}.json"
         if [ -f ./cache/"${1}" ]; then
             sendTextMessage "$2" "${musicName}%0A专辑:+${musicAlbum}%0A${musicExt}  ${musicSizeMB}MB%0A正在下载中，请稍后再试。" >/dev/null 2>&1
@@ -195,6 +198,13 @@ function processSearch() {
     editMessage "$2" "${msgID}" "搜索结果:%0A${searchReport}" "${inlineKeyboard}" >/dev/null 2>&1
 }
 
+botInfo=$(getMe)
+if [ ! "$(echo "$botInfo" | jq .ok)" == true ]; then
+    echo "无法获取bot信息，请检查你的token"
+    exit 1
+fi
+botName=$(echo "$botInfo" | jq -r .result.username)
+
 for (( ; ; )); do
     updateData=$(updateMessage "$updateID")
     while [ "$(echo "$updateData" | jq -r .result[0].update_id)" == null ]; do
@@ -207,19 +217,6 @@ for (( ; ; )); do
             message=$(echo "$updateData" | jq -r .result[$i].message.text)
             callback=$(echo "$updateData" | jq -r .result[$i].callback_query)
             chatID=$(echo "$updateData" | jq -r .result[$i].message.chat.id)
-            if [[ "$message" =~ /musicid ]] || [[ "$message" =~ music.163.com ]] || [[ "$message" =~ /netease ]] || [[ "$message" =~ "/start musicid" ]]; then
-                if [[ "$message" =~ music.163.com ]]; then
-                    id=$(echo "$message" | tr -d "\n" | sed 's:\(.*\)song?id=::' | sed 's:\(.*\)song/::' | sed 's:/\(.*\)::' | sed 's:&\(.*\)::' | sed 's:?user\(.*\)::')
-                else
-                    id=$(echo "$message" | sed 's:/musicid::' | sed 's:/netease::' | sed 's:/start musicid::' | sed s/[[:space:]]//g)
-                fi
-                if echo "$id" | grep -q '^[Z0-9 ]\+$'; then
-                    processMusic "$id" "$chatID" &
-                fi
-            fi
-            if [[ "$message" =~ '/search' ]]; then
-                processSearch "$(echo "$message" | sed 's:/search::' | sed 's:@Music163bot::' | sed s/[[:space:]]// | sed 's/["\]/\\&/g')" "$chatID" &
-            fi
             if [ "$callback" != "null" ]; then
                 callbackMessage=$(echo "$callback" | jq -r .data)
                 #callbackChatID=$(echo "$callback" | jq -r .message.chat.id)
@@ -230,6 +227,22 @@ for (( ; ; )); do
                 #fi
                 answerCallbackQuery "$callbackQueryID" "t.me/${botName}?start=${callbackMessage}" >/dev/null 2>&1 &
             fi
+            case "${message}" in
+                "/musicid"*|"/netease"*|*"music.163.com"*|"/start musicid"*)
+				case "${message}" in
+					*"music.163.com")
+                    id=$(echo "$message" | tr -d "\n" | sed -e 's/[[:space:]]//g' -e 's:\(.*\)song?id=::' -e 's:\(.*\)song/::' -e 's:/\(.*\)::' -e 's:&\(.*\)::' -e 's:?user\(.*\)::')
+                    ;;
+                    *)
+                    id=$(echo "$message" | sed -e 's:/musicid::' -e 's:/netease::' -e 's:/start musicid::' -e s/[[:space:]]//g)
+                    ;;
+				esac
+                [[ "$id" =~ [^0-9]+$ ]] || processMusic "$id" "$chatID" &
+                ;;
+                "/search"*)
+                    processSearch "$(echo "$message" | sed 's:/search::' | sed 's:@Music163bot::' | sed s/[[:space:]]// | sed 's/["\]/\\&/g')" "$chatID" &
+                ;;
+            esac
         fi
     done
     updateID=$(echo "$updateData" | jq -r .result["$(($(echo "$updateData" | jq '.result|length') - 1))"].update_id)
