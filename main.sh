@@ -230,6 +230,7 @@ function processSearch() {
 }
 
 function processInlineQuery() {
+    local musicData musicName musicExt musicAlbum musicArtists musicInfo musicFileID replyMarkup inlineQueryResults
     if [ -f "./cache/${1}.json" ] && [ -f "./cache/${1}.txt" ]; then
         musicData=$(cat "./cache/${1}.json")
         musicName=$(echo "$musicData" | jq -r .name)
