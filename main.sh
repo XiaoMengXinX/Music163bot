@@ -108,7 +108,7 @@ function processMusic() {
         musicData=$(getSongDetail "$1")
         #LogDebug echo "$musicData"
         musicName=$(echo "$musicData" | jq -r .songs[0].name)
-        if [ "$musicName" = "null" ]; then
+        if [ "$musicName" = "null" ] || [ "$1" = "" ]; then
             sendTextMessage "$2" "错误的 MusicID : $id" >/dev/null 2>&1
             return 1
         fi
@@ -252,7 +252,7 @@ botInfo=$(getMe)
 #LogDebug echo "$botInfo"
 if [ ! "$(echo "$botInfo" | jq .ok)" == true ]; then
     #logFatal printf "%s \033[31m无法获取bot信息，请检查你的token\033[0m\n" "$(timeNow)"
-    exit 1
+    sleep 1 && kill 0
 fi
 botName=$(echo "$botInfo" | jq -r .result.username)
 #LogInfo printf "%s \033[32mBot: %s 验证成功\033[0m\n" "$(timeNow)" "$botName"
