@@ -244,7 +244,8 @@ function processInlineQuery() {
         answerInlineQuery "${2}" "${inlineQueryResults}" >/dev/null 2>&1 &
     else
         inlineQueryResults="[{\"type\":\"article\",\"id\":\"${2}\",\"title\":\"歌曲未缓存\",\"input_message_content\":{\"message_text\":\"null\"},\"description\":\"点击上方按钮缓存歌曲\"}]"
-        answerInlineQuery "${2}" "${inlineQueryResults}" >/dev/null 2>&1 &
+        inlineQueryExt="&switch_pm_text=点我缓存歌曲&switch_pm_parameter=musicid${1}"
+        answerInlineQuery "${2}" "${inlineQueryResults}${inlineQueryExt}" >/dev/null 2>&1 &
     fi
 }
 
