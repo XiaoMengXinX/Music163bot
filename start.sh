@@ -63,7 +63,7 @@ function exitFunc() {
   unset BOT_TOKEN MUSIC_U tgAPI
   if [ "${logLevel}" != "off" ]; then
     printf "\r%s \033[32mSee you next time!\033[0m\n" "$(date +["%Y/%m/%d %T"])"
-    mv ./latest.log ./"$(date +"%Y-%m-%d-%T")".log /dev/shm/"$FPID" >/dev/null 2>&1
+    mv ./latest.log ./"$(date +"%Y-%m-%d-%T")".log  >/dev/null 2>&1
   fi
   rm ./cache/*.temp >/dev/null 2>&1
   kill -9 0
