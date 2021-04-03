@@ -18,7 +18,7 @@ https://t.me/Music163bot
 
 - [x] 分享链接嗅探
 
-- [x] i内联（inline）bot
+- [x] 内联（inline）bot
 
 - [x] 歌曲搜索
 
