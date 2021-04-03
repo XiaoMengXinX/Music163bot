@@ -1,4 +1,12 @@
 #!/bin/bash
+function checkCommand() {
+    if [ "$(which "$1")" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 function encryptData() {
     openssl enc -aes-128-ecb -K 653832636b656e683864696368656e38 -nosalt | od -An -t xC | xargs | sed 's/[[:space:]]//g' | tr '[:upper:]' '[:lower:]'
 }
@@ -79,21 +87,9 @@ function answerInlineQuery() {
 }
 
 # sendMusicFromFile id ext name artist duration album songInfo chatID
-function sendMusicFromFile() {
-    curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/sendChatAction" -d "chat_id=$8&action=upload_audio" >/dev/null 2>&1
-    curl "${tgAPI}/bot${BOT_TOKEN}/sendAudio" -s -X POST -F chat_id="$8" -F audio="@${1}.${2}" -F title="$(echo "${3}" | sed 's/[@]/ &/')" -F performer="$(echo "${4}" | sed 's/[@]/ &/')" -F duration="${5}" -F thumb="@${1}.jpg" -F parse_mode="Markdown" -F caption="「$(echo "${3}" | sed 's/[_*`[\]/\\&/g')」 - $(echo "${4}" | sed 's/[_*`[\]/\\&/g')
-	专辑: $(echo "${6}" | sed 's/[_*`[\]/\\&/g')
-	#网易云音乐 #${2}
-	via @$(echo "${botName}" | sed 's/[_*`[\]/\\&/g') " -F reply_markup="{\"inline_keyboard\":[[{\"text\":\"$(echo "${7}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
-}
-
-# sendMusicFromID id ext name artist duration album songInfo chatID fileID
-function sendMusicFromID() {
-    curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/sendChatAction" -d "chat_id=$8&action=upload_audio" >/dev/null 2>&1
-    curl "${tgAPI}/bot${BOT_TOKEN}/sendAudio" -s -X POST -F chat_id="$8" -F audio="$9" -F title="$(echo "${3}" | sed 's/[@]/ &/')" -F performer="$(echo "${4}" | sed 's/[@]/ &/')" -F duration="${5}" -F thumb="@${1}.jpg" -F parse_mode="Markdown" -F caption="「$(echo "${3}" | sed 's/[_*`[\]/\\&/g')」 - $(echo "${4}" | sed 's/[_*`[\]/\\&/g')
-	专辑: $(echo "${6}" | sed 's/[_*`[\]/\\&/g')
-	#网易云音乐 #${2}
-	via @$(echo "${botName}" | sed 's/[_*`[\]/\\&/g')" -F reply_markup="{\"inline_keyboard\":[[{\"text\":\"$(echo "${7}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
+function sendMusic() {
+    curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/sendChatAction" -d "chat_id=$2&action=upload_audio" >/dev/null 2>&1
+    curl "${tgAPI}/bot${BOT_TOKEN}/sendAudio" -s -X POST -F chat_id="$2" -F audio="${3}" -F title="$(echo "${4}" | sed 's/[@]/ &/')" -F performer="$(echo "${5}" | sed 's/[@]/ &/')" -F duration="${6}" -F thumb="@${7}" -F parse_mode="Markdown" -F caption="$(echo "${8}" | sed 's/[_*`[\]/\\&/g')" -F reply_markup="{\"inline_keyboard\":[[{\"text\":\"$(echo "${9}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
 }
 
 function timeNow() {
@@ -102,11 +98,11 @@ function timeNow() {
 
 # processMusic musicID chatID
 function processMusic() {
-    local i musicData musicName musicUrlData musicUrl musicExt musicSize musicSizeMB musicAlbum musicPicUrl musicArtistLen musicArtists musicInfo msgID musicDuration musicSendingData musicFileID
+    local i musicData musicName musicUrlData musicUrl musicExt musicSize musicSizeMB musicAlbum musicPicUrl musicArtistLen musicArtists msgID musicDuration musicSendingData musicFileID
     if [ ! -f "./cache/${1}.json" ] || [ ! -f "./cache/${1}.txt" ]; then
         [ -d "./cache" ] || mkdir "./cache"
         musicData=$(getSongDetail "$1")
-        #LogDebug echo "$musicData"
+        #LogDebug echo "[DEBUG] musicData: $musicData"
         musicName=$(echo "$musicData" | jq -r .songs[0].name)
         if [ "$musicName" = "null" ] || [ "$1" = "" ]; then
             sendTextMessage "$2" "错误的 MusicID : $id" >/dev/null 2>&1
@@ -130,20 +126,24 @@ function processMusic() {
                 musicArtists="${musicArtists}$(echo "$musicData" | jq -r .songs[0].ar[$i].name)"
             fi
         done
-        musicInfo=$(echo -n "${musicName} - ${musicArtists}" | tr -d "\n" | tr -d '[:cntrl:]')
         if [ -f ./cache/"${1}.temp" ]; then
             sendTextMessage "$2" "${musicName}%0A专辑:+${musicAlbum}%0A${musicExt}  ${musicSizeMB}MB%0A正在下载中，请稍后再试。" >/dev/null 2>&1
             return 1
         fi
         touch ./cache/"${1}.temp"
         msgID=$(sendTextMessage "$2" "${musicName}%0A专辑:+${musicAlbum}%0A${musicExt}  ${musicSizeMB}MB%0A下载中..." | jq .result.message_id)
-        #LogInfo printf "%s ChatID: %s 开始下载 MusicID: %s (%s)\n" "$(timeNow)" "$2" "$1" "$musicInfo"
-        curl -s -X GET -H "User-Agent:NeteaseMusic/7.3.28.1604408871(7003028);Dalvik/2.1.0 (Linux; U; Android 9; MIX 2 MIUI/V12.0.1.0.PDECNXM)" -H 'X-Real-IP:175.167.152.57' -H "Referer:http://music.163.com/api/" -H "Range:bytes=0-${musicSize}" -H "Host:$(echo "${musicUrl%%.*}" | sed 's:\(.*\)/::').music.126.net" -H "Connection:Keep-Alive" "$musicUrl" -o ./cache/"${1}.${musicExt}" >/dev/null 2>&1
+        #LogInfo printf "%s \033[32m[INFO]\033[0m ChatID: %s 开始下载 MusicID: %s (%s)\n" "$(timeNow)" "$2" "$1" "$(printf "%s - %s" "${musicName}" "${musicArtists}")"
+        if checkCommand axel; then
+            axel -n 8 -o ./cache/"${1}.${musicExt}" "$musicUrl" >/dev/null 2>&1
         #LogError returnCode="$?"
+        else
+            curl -s -X GET -H "User-Agent:NeteaseMusic/7.3.28.1604408871(7003028);Dalvik/2.1.0 (Linux; U; Android 9; MIX 2 MIUI/V12.0.1.0.PDECNXM)" -H 'X-Real-IP:175.167.152.57' -H "Referer:http://music.163.com/api/" -H "Range:bytes=0-${musicSize}" -H "Host:$(echo "${musicUrl%%.*}" | sed 's:\(.*\)/::').music.126.net" -H "Connection:Keep-Alive" "$musicUrl" -o ./cache/"${1}.${musicExt}" >/dev/null 2>&1
+        #LogError returnCode="$?"
+        fi
         if [ "$(ls -l ./cache/"${1}.${musicExt}" | awk '{print $5}')" -lt 800 ]; then
             sendTextMessage "$2" "${musicName}%%0A专辑:++${musicAlbum}%0A${musicExt}  ${musicSizeMB}MB%0A下载失败" >/dev/null 2>&1
             rm ./cache/"${1}.${musicExt}"
-            #LogError printf "%s \033[31mChatID: %s 下载 MusicID: %s (%s) 失败 (curl: %s)\033[0m\n" "$(timeNow)" "$2" "$1" "$musicInfo" "$returnCode"
+            #LogError printf "%s \033[31m[ERROR] ChatID: %s 下载 MusicID: %s (%s) 失败 (curl: %s)\033[0m\n" "$(timeNow)" "$2" "$1" "$(printf "%s - %s" "${musicName}" "${musicArtists}")" "returnCode: $returnCode"
             return 1
         fi
         musicDuration=$(soxi -D ./cache/"${1}.${musicExt}")
@@ -151,23 +151,23 @@ function processMusic() {
         curl "$musicPicUrl" -o ./cache/"${1}"_0.jpg >/dev/null 2>&1
         ffmpeg -i ./cache/"${1}"_0.jpg -vf "scale=1024:-1" ./cache/"${1}".jpg >/dev/null 2>&1
         #LogError returnCode="$?"
-        #LogError [ "$returnCode" = 0 ] || printf "%s \033[31mChatID: %s 压缩 MusicID: %s (%s) 专辑封面失败 (ffmpeg: %s)\033[0m\n" "$(timeNow)" "$2" "$1" "$musicInfo" "$returnCode"
+        #LogError [ "$returnCode" = 0 ] || printf "%s \033[31m[ERROR] ChatID: %s 压缩 MusicID: %s (%s) 专辑封面失败 (ffmpeg: %s)\033[0m\n" "$(timeNow)" "$2" "$1" "$(printf "%s - %s" "${musicName}" "${musicArtists}")" "$returnCode"
         if [ -f ./SongInfoAdder ]; then
             ./SongInfoAdder -i "cache/${1}.${musicExt}"
         fi
         editMessage "$2" "$msgID" "$musicName%0A专辑: ${musicAlbum}%0A${musicExt}++${musicSizeMB}MB%0A下载完成，发送中..." >/dev/null 2>&1
         cd cache || return 1
-        #LogInfo printf "%s ChatID: %s 下载 MusicID: %s (%s) 成功，正在上传\n" "$(timeNow)" "$2" "$1" "$musicInfo"
-        musicSendingData=$(sendMusicFromFile "$1" "$musicExt" "$musicName" "$musicArtists" "$musicDuration" "$musicAlbum" "$musicInfo" "$2")
-        #LogDebug echo "$musicSendingData"
+        #LogInfo printf "%s \033[32m[INFO]\033[0m ChatID: %s 下载 MusicID: %s (%s) 成功，正在上传\n" "$(timeNow)" "$2" "$1" "$(printf "%s - %s" "${musicName}" "${musicArtists}")"
+        musicSendingData=$(sendMusic "$1" "$2" "@${1}.${musicExt}" "${musicName}" "${musicArtists}" "${musicDuration}" "${1}.jpg" "$(printf "「%s」 - %s\n专辑: %s\n#网易云音乐 #%s\nvia @%s" "${musicName}" "${musicArtists}" "${musicAlbum}" "${musicExt}" "${botName}")" "$(printf "%s - %s" "${musicName}" "${musicArtists}")")
+        #LogDebug echo "[DEBUG] musicSendingData: $musicSendingData"
         musicFileID=$(echo "$musicSendingData" | jq -r .result.audio.file_id)
         rm ./"${1}"_0.jpg ./"${1}.temp" ./"${1}"."${musicExt}"
         if [ "$musicFileID" != 'null' ] && [ "$musicFileID" != '' ]; then
             echo -n "$musicFileID" >"${1}.txt"
-            #LogInfo printf "%s ChatID: %s 上传 MusicID: %s (%s) 成功\n" "$(timeNow)" "$2" "$1" "$musicInfo"
+            #LogInfo printf "%s \033[32m[INFO]\033[0m ChatID: %s 上传 MusicID: %s (%s) 成功\n" "$(timeNow)" "$2" "$1" "$(printf "%s - %s" "${musicName}" "${musicArtists}")"
         else
             editMessage "$2" "$msgID" "${musicName}%0A专辑:  ${musicAlbum}%0A${musicExt}  ${musicSizeMB}MB%0A发送失败" >/dev/null 2>&1
-            #LogError printf "%s \033[31mChatID: %s 上传 MusicID: %s (%s) 失败，请开启 debug 并检查日志\033[0m\n" "$(timeNow)" "$2" "$1" "$musicInfo"
+            #LogError printf "%s \033[31m[ERROR] ChatID: %s 上传 MusicID: %s (%s) 失败，请开启 debug 并检查日志\033[0m\n" "$(timeNow)" "$2" "$1" "$(printf "%s - %s" "${musicName}" "${musicArtists}")"
             return 1
         fi
         sleep 2
@@ -180,15 +180,14 @@ function processMusic() {
         musicArtists=$(echo "$musicData" | jq -r .artist)
         musicDuration=$(echo "$musicData" | jq -r .duration)
         musicAlbum=$(echo "$musicData" | jq -r .album)
-        musicInfo=$(echo -n "${musicName} - ${musicArtists}" | tr -d "\n" | tr -d '[:cntrl:]')
         musicFileID=$(cat "./cache/${1}.txt")
         musicSize=$(echo "$musicData" | jq -r .size)
         musicSizeMB=$(echo "scale=2;${musicSize} / 1048576" | bc)
         msgID=$(sendTextMessage "$2" "${musicName}%0A专辑:+${musicAlbum}%0A${musicExt}  ${musicSizeMB}MB%0A命中缓存，发送中..." | jq .result.message_id)
         musicFileID=$(cat "./cache/${1}.txt")
         cd cache || return 1
-        sendMusicFromID "$1" "$musicExt" "$musicName" "$musicArtists" "$musicDuration" "$musicAlbum" "$musicInfo" "$2" "$musicFileID" >/dev/null 2>&1
-        #LogInfo printf "%s ChatID: %s 上传 MusicID: %s (%s) 命中缓存\n" "$(timeNow)" "$2" "$1" "$musicInfo"
+        sendMusic "$1" "$2" "$musicFileID" "${musicName}" "${musicArtists}" "${musicDuration}" "${1}.jpg" "$(printf "「%s」 - %s\n专辑: %s\n#网易云音乐 #%s\nvia @%s" "${musicName}" "${musicArtists}" "${musicAlbum}" "${musicExt}" "${botName}")" "$(printf "%s - %s" "${musicName}" "${musicArtists}")" >/dev/null 2>&1
+        #LogInfo printf "%s \033[32m[INFO]\033[0m ChatID: %s 上传 MusicID: %s (%s) 命中缓存\n" "$(timeNow)" "$2" "$1" "$(printf "%s - %s" "${musicName}" "${musicArtists}")"
         sleep 2
         deleteMessage "$2" "$msgID" >/dev/null 2>&1
         return 0
@@ -198,7 +197,7 @@ function processMusic() {
 function processSearch() {
     local a i searchResult msgID searchResultNum musicArtistLen musicArtists musicName searchReport inlineMarkup inlineKeyboard
     searchResult=$(getSearchResult "${1}" | jq .result.songs)
-    #LogDebug echo "$searchResult"
+    #LogDebug echo "[DEBUG] searchResult: $searchResult"
     if [ "$searchResult" = "null" ]; then
         sendTextMessage "$2" "未找到结果" >/dev/null 2>&1
         return 1
@@ -225,12 +224,12 @@ function processSearch() {
         fi
     done
     inlineKeyboard="{\"inline_keyboard\":[[${inlineMarkup}]]}"
-    #LogDebug echo inlineKeyboard:"$inlineKeyboard"
+    #LogDebug echo "[DEBUG] inlineKeyboard:$inlineKeyboard"
     editMessage "$2" "${msgID}" "搜索结果:%0A${searchReport}" "${inlineKeyboard}" >/dev/null 2>&1
 }
 
 function processInlineQuery() {
-    local musicData musicName musicExt musicAlbum musicArtists musicInfo musicFileID replyMarkup inlineQueryResults
+    local musicData musicName musicExt musicAlbum musicArtists musicFileID replyMarkup inlineQueryResults
     if [ -f "./cache/${1}.json" ] && [ -f "./cache/${1}.txt" ]; then
         musicData=$(cat "./cache/${1}.json")
         musicName=$(echo "$musicData" | jq -r .name)
@@ -238,9 +237,8 @@ function processInlineQuery() {
         musicArtists=$(echo "$musicData" | jq -r .artist)
         musicExt=$(echo "$musicData" | jq -r .ext)
         musicFileID=$(cat "./cache/${1}.txt")
-        musicInfo=$(echo -n "${musicName} - ${musicArtists}" | tr -d "\n" | tr -d '[:cntrl:]')
-        replyMarkup="{\"inline_keyboard\":[[{\"text\":\"$(echo "${musicInfo}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
-        inlineQueryResults="[{\"type\":\"document\",\"id\":\"${2}\",\"title\":\"$(echo "${musicInfo}" | sed 's/["\]/\\&/g')\",\"document_file_id\":\"${musicFileID}\",\"caption\":\"$(echo "${musicInfo}" | sed 's/[_*`["\]/\\&/g')\n专辑: $(echo "${musicAlbum}" | sed 's/[_*`["\]/\\&/g')\n#网易云音乐 #${musicExt} \nvia @${botName} \",\"parse_mode\":\"Markdown\",\"reply_markup\":${replyMarkup},\"description\":\"$(echo "${musicAlbum}" | sed 's/["\]/\\&/g')\"}]"
+        replyMarkup="{\"inline_keyboard\":[[{\"text\":\"$(printf "%s - %s" "${musicName}" "${musicArtists}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
+        inlineQueryResults="[{\"type\":\"document\",\"id\":\"${2}\",\"title\":\"$(printf "%s - %s" "${musicName}" "${musicArtists}" | sed 's/["\]/\\&/g')\",\"document_file_id\":\"${musicFileID}\",\"caption\":\"$(printf "%s - %s" "${musicName}" "${musicArtists}" | sed 's/[_*`["\]/\\&/g')\n专辑: $(echo "${musicAlbum}" | sed 's/[_*`["\]/\\&/g')\n#网易云音乐 #${musicExt} \nvia @${botName} \",\"parse_mode\":\"Markdown\",\"reply_markup\":${replyMarkup},\"description\":\"$(echo "${musicAlbum}" | sed 's/["\]/\\&/g')\"}]"
         answerInlineQuery "${2}" "${inlineQueryResults}" >/dev/null 2>&1 &
     else
         inlineQueryResults="[{\"type\":\"article\",\"id\":\"${2}\",\"title\":\"歌曲未缓存\",\"input_message_content\":{\"message_text\":\"null\"},\"description\":\"点击上方按钮缓存歌曲\"}]"
@@ -249,14 +247,27 @@ function processInlineQuery() {
     fi
 }
 
+if ! checkCommand jq || ! checkCommand ffmpeg || ! checkCommand soxi || ! checkCommand curl || ! checkCommand openssl; then
+    #logFatal checkCommand jq || printf "%s \033[31m[FATAL] 软件依赖: jq 缺失\033[0m\n" "$(timeNow)"
+    #logFatal checkCommand ffmpeg || printf "%s \033[31m[FATAL] 软件依赖: ffmpeg 缺失\033[0m\n" "$(timeNow)"
+    #logFatal checkCommand soxi || printf "%s \033[31m[FATAL] 软件依赖: sox 缺失\033[0m\n" "$(timeNow)"
+    #logFatal checkCommand curl || printf "%s \033[31m[FATAL] 软件依赖: curl 缺失\033[0m\n" "$(timeNow)"
+    #logFatal checkCommand openssl || printf "%s \033[31m[FATAL] 软件依赖: openssl 缺失\033[0m\n" "$(timeNow)"
+    sleep 1 && kill 0
+fi
+
+#LogInfo printf "%s \033[32m[INFO]\033[0m 正在验证botToken...\n" "$(timeNow)"
 botInfo=$(getMe)
 #LogDebug echo "$botInfo"
 if [ ! "$(echo "$botInfo" | jq .ok)" == true ]; then
-    #logFatal printf "%s \033[31m无法获取bot信息，请检查你的token\033[0m\n" "$(timeNow)"
+    #logFatal printf "%s \033[31m[FATAL] 无法获取bot信息，请检查你的token\033[0m\n" "$(timeNow)"
     sleep 1 && kill 0
+else
+    #LogWarn [ "$(echo "$botInfo" | jq .result.can_read_all_group_messages)" = true ] || printf "%s \033[33m[WARN] 您的 bot 无法访问群组消息\033[0m\n" "$(timeNow)"
+    #LogWarn [ "$(echo "$botInfo" | jq .result.supports_inline_queries)" = true ] || printf "%s \033[33m[WARN] 您的 bot 未开启 inline 功能\033[0m\n" "$(timeNow)"
+    botName=$(echo "$botInfo" | jq -r .result.username)
+    #LogInfo printf "%s \033[32m[INFO] Bot: %s 验证成功\033[0m\n" "$(timeNow)" "$botName"
 fi
-botName=$(echo "$botInfo" | jq -r .result.username)
-#LogInfo printf "%s \033[32mBot: %s 验证成功\033[0m\n" "$(timeNow)" "$botName"
 
 for (( ; ; )); do
     updateData=$(updateMessage "$updateID")
@@ -267,10 +278,11 @@ for (( ; ; )); do
     messageNumber=$(($(echo "$updateData" | jq '.result|length') - 1))
     for ((i = 0; i <= messageNumber; i++)); do
         if [ "$updateID" ] && [ "$(echo "$updateData" | jq -r .result[$i].update_id)" -gt "$updateID" ]; then
-            #LogDebug echo updateData:"$(echo "$updateData" | jq -r .result[$i])"
+            #LogDebug echo "[DEBUG] updateData: $(echo "$updateData" | jq -r .result[$i])"
             message=$(echo "$updateData" | jq -r .result[$i].message.text)
             callback=$(echo "$updateData" | jq -r .result[$i].callback_query)
             chatID=$(echo "$updateData" | jq -r .result[$i].message.chat.id)
+            chatType=$(echo "$updateData" | jq -r .result[$i].message.chat.type)
             inlineID=$(echo "$updateData" | jq -r .result[$i].inline_query.id)
             if [ "$callback" != "null" ]; then
                 callbackMessage=$(echo "$callback" | jq -r .data)
@@ -283,7 +295,7 @@ for (( ; ; )); do
                     if echo "$id" | grep -q '^[Z0-9 ]\+$'; then
                         answerCallbackQueryText "$callbackQueryID" "Success" >/dev/null 2>&1 &
                         processMusic "$id" "$callbackChatID" &
-                        #LogInfo printf "%s ChatID: %s 通过 inlineKeyboard 请求 MusicID: %s\n" "$(timeNow)" "$callbackChatID" "$id"
+                        #LogInfo printf "%s \033[32m[INFO]\033[0m ChatID: %s (private) 通过 inlineKeyboard 请求 MusicID: %s\n" "$(timeNow)" "$callbackChatID" "$id"
                     fi
                 fi
             fi
@@ -291,7 +303,7 @@ for (( ; ; )); do
                 inlineQuery=$(echo "$updateData" | jq -r .result[$i].inline_query.query)
                 if echo "${inlineQuery}" | grep -q '^[Z0-9 ]\+$'; then
                     processInlineQuery "${inlineQuery}" "${inlineID}" >/dev/null 2>&1 &
-                    #LogInfo printf "%s inlineID: %s 请求 MusicID: %s\n" "$(timeNow)" "$inlineID" "$inlineQuery"
+                    #LogInfo printf "%s \033[32m[INFO]\033[0m inlineID: %s (From user %s) 请求 MusicID: %s\n" "$(timeNow)" "$inlineID" "$(echo "${updateData}" | jq -r .result[$i].inline_query.from.id)" "$inlineQuery"
                 else
                     case "${inlineQuery}" in
                     help)
@@ -302,7 +314,7 @@ for (( ; ; )); do
                         id=$(echo "${inlineQuery}" | tr -d "\n" | sed -e 's/[[:space:]]//g' -e 's:\(.*\)song?id=::' -e 's:\(.*\)song/::' -e 's:/\(.*\)::' -e 's:&\(.*\)::' -e 's:?user\(.*\)::')
                         if echo "${id}" | grep -q '^[Z0-9 ]\+$'; then
                             processInlineQuery "${id}" "${inlineID}" >/dev/null 2>&1 &
-                            #LogInfo printf "%s inlineID: %s 请求 MusicID: %s\n" "$(timeNow)" "$inlineID" "$id"
+                            #LogInfo printf "%s \033[32m[INFO]\033[0m inlineID: %s (From user %s) 请求 MusicID: %s\n" "$(timeNow)" "$inlineID" "$(echo "${updateData}" | jq -r .result[$i].inline_query.from.id)" "$inlineQuery"
                         fi
                         ;;
                     esac
@@ -319,11 +331,11 @@ for (( ; ; )); do
                     ;;
                 esac
                 [[ "$id" =~ [^0-9]+$ ]] || processMusic "$id" "$chatID" &
-                #LogInfo printf "%s ChatID: %s 请求 MusicID: %s\n" "$(timeNow)" "$chatID" "$id"
+                #LogInfo printf "%s \033[32m[INFO]\033[0m ChatID: %s (%s) 请求 MusicID: %s\n" "$(timeNow)" "$chatID" "$chatType" "$id"
                 ;;
             "/search"*)
                 processSearch "$(echo "$message" | tr -d "\n" | sed -e 's:/search::' -e "s:@${botName}::" -e s/[[:space:]]// -e 's/["\]/\\&/g')" "$chatID" &
-                #LogInfo printf "%s ChatID: %s 请求 Search: %s\n" "$(timeNow)" "$chatID" "$(echo "$message" | sed -e 's:/search::' -e "s:@${botName}::" -e s/[[:space:]]// -e 's/["\]/\\&/g')"
+                #LogInfo printf "%s \033[32m[INFO]\033[0m ChatID: %s (%s) 请求 Search: %s\n" "$(timeNow)" "$chatID" "$chatType" "$(echo "$message" | sed -e 's:/search::' -e "s:@${botName}::" -e s/[[:space:]]// -e 's/["\]/\\&/g')"
                 ;;
             esac
         fi

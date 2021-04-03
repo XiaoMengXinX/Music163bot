@@ -13,8 +13,9 @@ EOT
 function internalCommands() {
   cat <<-EOT
   Commands :
-    help      Display this message
-    exit      Exit the script safely.
+    help                Display this message.
+    rmcache [musicid]   Remove cache.
+    exit                Exit the script safely.
 EOT
 }
 
@@ -62,10 +63,10 @@ function exitFunc() {
   unset BOT_TOKEN MUSIC_U tgAPI
   if [ "${logLevel}" != "off" ]; then
     printf "\r%s \033[32mSee you next time!\033[0m\n" "$(date +["%Y/%m/%d %T"])"
-    mv ./latest.log ./"$(date +"%Y-%m-%d-%T")".log >/dev/null 2>&1
+    mv ./latest.log ./"$(date +"%Y-%m-%d-%T")".log /dev/shm/"$FPID" >/dev/null 2>&1
   fi
   rm ./cache/*.temp >/dev/null 2>&1
-  kill 0
+  kill -9 0
 }
 
 configFile="config.ini"
@@ -98,7 +99,7 @@ if ! readConfig; then
   done
 fi
 
-trap "exitFunc" SIGINT
+trap "exitFunc" SIGINT SIGTERM
 
 if [ "${logLevel}" != "off" ]; then
   [ -f ./latest.log ] || touch latest.log
@@ -129,8 +130,11 @@ off)
   ;;
 esac
 
-while read -r -p "" input; do
-  case "${input}" in
+while read -e -r -p "" cmd arg0; do
+  case "${cmd}" in
+  rmcache)
+    ! find ./cache/"${arg0}".* >/dev/null 2>&1 || rm ./cache/"${arg0}".*
+    ;;
   exit)
     exitFunc
     ;;
