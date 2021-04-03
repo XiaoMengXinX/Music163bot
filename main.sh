@@ -341,4 +341,5 @@ for (( ; ; )); do
         fi
     done
     updateID=$(echo "$updateData" | jq -r .result["$(($(echo "$updateData" | jq '.result|length') - 1))"].update_id)
+    sleep 1
 done
