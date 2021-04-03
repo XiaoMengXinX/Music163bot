@@ -28,7 +28,7 @@ https://t.me/Music163bot
 
 - [x] 歌曲快速分享
 
-- [x] 下载无损flac音频 （需在服务端设置MUSIC_U)
+- [x] 下载无损flac音频 （需设置MUSIC_U)
 
 # How to use？
 
