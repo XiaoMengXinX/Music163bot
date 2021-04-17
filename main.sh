@@ -56,17 +56,17 @@ function updateMessage() {
 
 function sendTextMessage() {
     if [ "$3" ]; then
-        curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${1}&parse_mode=Markdown&text=$(echo "$2" | sed 's/[_*`[\]/\\&/g')&reply_markup=${3}"
+        curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${1}&parse_mode=Markdown&text=$(echo "$2" | sed -e 's/[_*`[\]/\\&/g' -e 's:&:%26:g')&reply_markup=${3}"
     else
-        curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${1}&parse_mode=Markdown&text=$(echo "$2" | sed 's/[_*`[\]/\\&/g')"
+        curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/sendMessage" -d "chat_id=${1}&parse_mode=Markdown&text=$(echo "$2" | sed -e 's/[_*`[\]/\\&/g' -e 's:&:%26:g')"
     fi
 }
 
 function editMessage() {
     if [ "$4" ]; then
-        curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/editMessageText" -d "chat_id=${1}&message_id=${2}&parse_mode=Markdown&text=$(echo "$3" | sed 's/[_*`[\]/\\&/g')&reply_markup=${4}"
+        curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/editMessageText" -d "chat_id=${1}&message_id=${2}&parse_mode=Markdown&text=$(echo "$3" | sed -e 's/[_*`[\]/\\&/g' -e 's:&:%26:g')&reply_markup=${4}"
     else
-        curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/editMessageText" -d "chat_id=${1}&message_id=${2}&parse_mode=Markdown&text=$(echo "$3" | sed 's/[_*`[\]/\\&/g')"
+        curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/editMessageText" -d "chat_id=${1}&message_id=${2}&parse_mode=Markdown&text=$(echo "$3" | sed -e 's/[_*`[\]/\\&/g' -e 's:&:%26:g')"
     fi
 }
 
@@ -83,7 +83,7 @@ function answerCallbackQueryText() {
 }
 
 function answerInlineQuery() {
-    curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/answerInlineQuery" -d "inline_query_id=${1}&results=${2}"
+    curl -s -X POST "${tgAPI}/bot${BOT_TOKEN}/answerInlineQuery" -d "inline_query_id=${1}&results=$(echo "${2}"|sed -e 's:&:%26:g')"
 }
 
 # sendMusicFromFile id ext name artist duration album songInfo chatID
@@ -238,7 +238,7 @@ function processInlineQuery() {
         musicExt=$(echo "$musicData" | jq -r .ext)
         musicFileID=$(cat "./cache/${1}.txt")
         replyMarkup="{\"inline_keyboard\":[[{\"text\":\"$(printf "%s - %s" "${musicName}" "${musicArtists}" | sed 's/["\]/\\&/g')\",\"url\": \"https://music.163.com/song/${1}/\"}],[{\"text\":\"Send me to...\",\"switch_inline_query\": \"music.163.com/song/${1}/\"}]]}"
-        inlineQueryResults="[{\"type\":\"document\",\"id\":\"${2}\",\"title\":\"$(printf "%s - %s" "${musicName}" "${musicArtists}" | sed 's/["\]/\\&/g')\",\"document_file_id\":\"${musicFileID}\",\"caption\":\"$(printf "%s - %s" "${musicName}" "${musicArtists}" | sed 's/[_*`["\]/\\&/g')\n专辑: $(echo "${musicAlbum}" | sed 's/[_*`["\]/\\&/g')\n#网易云音乐 #${musicExt} \nvia @${botName} \",\"parse_mode\":\"Markdown\",\"reply_markup\":${replyMarkup},\"description\":\"$(echo "${musicAlbum}" | sed 's/["\]/\\&/g')\"}]"
+        inlineQueryResults="[{\"type\":\"document\",\"id\":\"${2}\",\"title\":\"$(printf "%s - %s" "${musicName}" "${musicArtists}" | sed 's/["\]/\\&/g')\",\"document_file_id\":\"${musicFileID}\",\"caption\":\"$(printf "%s - %s" "${musicName}" "${musicArtists}" | sed -e 's/["\]/\\&/g' -e 's/[_*`[]/\\\\&/g')\n专辑: $(echo "${musicAlbum}" | sed -e 's/["\]/\\&/g' -e 's/[_*`[]/\\\\&/g')\n#网易云音乐 #${musicExt} \nvia @${botName} \",\"parse_mode\":\"Markdown\",\"reply_markup\":${replyMarkup},\"description\":\"$(echo "${musicAlbum}" | sed 's/["\]/\\&/g')\"}]"
         answerInlineQuery "${2}" "${inlineQueryResults}" >/dev/null 2>&1 &
     else
         inlineQueryResults="[{\"type\":\"article\",\"id\":\"${2}\",\"title\":\"歌曲未缓存\",\"input_message_content\":{\"message_text\":\"null\"},\"description\":\"点击上方按钮缓存歌曲\"}]"
