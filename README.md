@@ -10,7 +10,7 @@ https://t.me/Music163bot
 
 - [ ] 使用 json.sh/json.awk 代替 jq
 
-- [ ] ~~使用golang重构代码~~
+- [X] 使用golang重构代码
 
 # Features
 
